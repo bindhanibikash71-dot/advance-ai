@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Chat History</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        h2 { text-align: center; }
+        
+        /* Login Form */
+        #loginSection {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-width: 300px;
+            margin: 0 auto;
+        }
+        input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px;
+            background-color: #0b93f6;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background-color: #097bce; }
+        .error { color: red; text-align: center; font-size: 0.9rem;}
+
+        /* Dashboard */
+        #dashboardSection { display: none; }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .logout-btn { background-color: #e74c3c; }
+        .logout-btn:hover { background-color: #c0392b; }
+        
+        .chat-card {
+            background: #f9f9f9;
+            border-left: 4px solid #0b93f6;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        .chat-card p { margin: 5px 0; }
+        .timestamp { font-size: 0.8rem; color: #777; }
+        .user-text { font-weight: bold; color: #2c3e50; }
+        .ai-text { color: #16a085; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Login Section -->
+    <div id="loginSection">
+        <h2>Admin Login</h2>
+        <input type="email" id="email" placeholder="Email" value="bindhanibikash71@gmail.com">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+        <div id="loginError" class="error"></div>
+    </div>
+
+    <!-- Dashboard Section -->
+    <div id="dashboardSection">
+        <div class="top-bar">
+            <h2>Chat History</h2>
+            <div>
+                <button onclick="fetchChats()">Refresh Chats</button>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </div>
+        <div id="chatsContainer">Loading chats...</div>
+    </div>
+</div>
+
+<script>
+    const loginSection = document.getElementById('loginSection');
+    const dashboardSection = document.getElementById('dashboardSection');
+    const loginError = document.getElementById('loginError');
+    const chatsContainer = document.getElementById('chatsContainer');
+
+    // Check if already logged in
+    if (localStorage.getItem('adminToken')) {
+        showDashboard();
+    }
+
+    async function login() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        try {
+            const res = await fetch('/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                localStorage.setItem('adminToken', data.token);
+                loginError.innerText = '';
+                showDashboard();
+            } else {
+                loginError.innerText = data.error;
+            }
+        } catch (error) {
+            loginError.innerText = 'Login failed. Server error.';
+        }
+    }
+
+    function showDashboard() {
+        loginSection.style.display = 'none';
+        dashboardSection.style.display = 'block';
+        fetchChats();
+    }
+
+    function logout() {
+        localStorage.removeItem('adminToken');
+        loginSection.style.display = 'flex';
+        dashboardSection.style.display = 'none';
+        document.getElementById('password').value = '';
+    }
+
+    async function fetchChats() {
+        const token = localStorage.getItem('adminToken');
+        chatsContainer.innerHTML = 'Loading chats...';
+
+        try {
+            const res = await fetch('/admin/chats', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.status === 401 || res.status === 403) {
+                logout();
+                alert('Session expired. Please log in again.');
+                return;
+            }
+
+            const chats = await res.json();
+            
+            if (chats.length === 0) {
+                chatsContainer.innerHTML = '<p>No chat history available.</p>';
+                return;
+            }
+
+            chatsContainer.innerHTML = chats.reverse().map(chat => `
+                <div class="chat-card">
+                    <p class="timestamp">${new Date(chat.timestamp).toLocaleString()}</p>
+                    <p><span class="user-text">User:</span> ${chat.user}</p>
+                    <p><span class="ai-text">AI:</span> ${chat.ai}</p>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            chatsContainer.innerHTML = '<p class="error">Failed to fetch chats.</p>';
+        }
+    }
+</script>
+</body>
+</html>
